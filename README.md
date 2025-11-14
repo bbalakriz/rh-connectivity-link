@@ -1,4 +1,4 @@
-# MEPS Connectivity Link - API Security with Kuadrant
+# Connectivity Link - API Security with Kuadrant
 
 This project demonstrates how to secure API endpoints on OpenShift using Red Hat Connectivity Link (based on Kuadrant), progressing from basic static API key authentication to enterprise-grade Keycloak-based authentication and role-based authorization (RBAC).
 
