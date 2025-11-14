@@ -1,0 +1,214 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  labels:
+    operators.coreos.com/servicemeshoperator3.openshift-operators: ""
+  name: servicemeshoperator3
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: servicemeshoperator3
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: servicemeshoperator3.v3.1.3
+---
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  labels:
+    kubernetes.io/metadata.name: istio-system
+    maistra.io/member-of: istio-system
+  name: istio-system
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  labels:
+    kubernetes.io/metadata.name: istio-cni
+  name: istio-cni
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: sailoperator.io/v1
+kind: Istio
+metadata:
+  name: default
+spec:
+  namespace: istio-system
+  updateStrategy:
+    inactiveRevisionDeletionGracePeriodSeconds: 30
+    type: InPlace
+  version: v1.26.4
+---
+apiVersion: sailoperator.io/v1
+kind: IstioCNI
+metadata:
+  name: default
+spec:
+  namespace: istio-cni
+  version: v1.26.4
+---
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  labels:
+    kubernetes.io/metadata.name: kuadrant-system
+  name: kuadrant-system
+spec:
+  finalizers:
+  - kubernetes
+---
+# Create the api-gateway namespace/project
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  labels:
+    kubernetes.io/metadata.name: api-gateway
+  name: api-gateway
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  labels:
+    operators.coreos.com/rhcl-operator.kuadrant-system: ""
+  name: rhcl-operator
+  namespace: kuadrant-system
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: rhcl-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: rhcl-operator.v1.2.0
+---
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: kuadrant-system
+spec:
+  mtls:
+    enable: false
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: toystore
+  namespace: toystore
+spec:
+  hostnames:
+  - api.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: external
+    namespace: api-gateway
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: toystore
+      port: 80
+      weight: 1
+    matches:
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /toy
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: toystore-authn
+  namespace: toystore
+spec:
+  defaults:
+    rules:
+      authentication:
+        api-key-authn:
+          apiKey:
+            allNamespaces: true
+            selector:
+              matchLabels:
+                app: toystore
+          credentials:
+            authorizationHeader:
+              prefix: APIKEY
+          metrics: false
+          priority: 0
+    strategy: merge
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: toystore
+---
+apiVersion: v1
+data:
+  api_key: WU9VUl9BUElfS0VZX0hFUkVfQkFTRTY0X0VOQ09ERUQ=  # Replace with your base64-encoded API key
+kind: Secret
+metadata:
+  labels:
+    app: toystore
+    authorino.kuadrant.io/managed-by: authorino
+  name: api-key-regular-user
+  namespace: kuadrant-system
+type: Opaque
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: disable-mtls-namespace
+  namespace: toystore
+spec:
+  host: '*.toystore.svc.cluster.local'
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  annotations:
+    networking.istio.io/service-type: ClusterIP
+  labels:
+    kuadrant.io/gateway: "true"
+  name: external
+  namespace: api-gateway
+spec:
+  gatewayClassName: istio
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: api.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com
+    name: http
+    port: 80
+    protocol: HTTP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: api-gateway-route
+  namespace: api-gateway
+spec:
+  host: api.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com
+  path: /
+  port:
+    targetPort: http
+  tls:
+    insecureEdgeTerminationPolicy: Allow
+    termination: edge
+  to:
+    kind: Service
+    name: external-istio
+    weight: 100
+  wildcardPolicy: None
+---

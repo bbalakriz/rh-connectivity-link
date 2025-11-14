@@ -1,0 +1,54 @@
+---
+# Create the toystore namespace/project
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  labels:
+    kubernetes.io/metadata.name: toystore
+  name: toystore
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: toystore
+  namespace: toystore
+  labels:
+    app: toystore
+spec:
+  selector:
+    matchLabels:
+      app: toystore
+  template:
+    metadata:
+      labels:
+        app: toystore
+    spec:
+      containers:
+        - name: toystore
+          image: quay.io/kuadrant/authorino-examples:talker-api
+          env:
+            - name: LOG_LEVEL
+              value: "debug"
+            - name: PORT
+              value: "3000"
+          ports:
+            - containerPort: 3000
+              name: http
+  replicas: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: toystore
+  namespace: toystore
+spec:
+  selector:
+    app: toystore
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 3000

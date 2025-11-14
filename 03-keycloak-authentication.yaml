@@ -1,0 +1,94 @@
+---
+# Create the keycloak namespace/project
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  labels:
+    kubernetes.io/metadata.name: keycloak
+  name: keycloak
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  labels:
+    operators.coreos.com/rhbk-operator.keycloak: ""
+  name: rhbk-operator
+  namespace: keycloak
+spec:
+  channel: stable-v26.4
+  installPlanApproval: Automatic
+  name: rhbk-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: rhbk-operator.v26.4.2-opr.1
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: Keycloak
+metadata:
+  labels:
+    app: sso
+  name: keycloak
+  namespace: keycloak
+spec:
+  hostname:
+    hostname: sso.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com
+  http:
+    httpEnabled: true
+    httpPort: 8080
+  ingress:
+    enabled: true
+  instances: 1
+  proxy:
+    headers: xforwarded
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+  update:
+    strategy: RecreateOnImageChange
+---
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: sso-authpolicy
+  namespace: toystore
+spec:
+  defaults:
+    rules:
+      authentication:
+        keycloak-jwt:
+          jwt:
+            issuerUrl: https://sso.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com/realms/kuadrant
+          metrics: false
+          priority: 0
+    strategy: atomic
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: toystore
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    route.openshift.io/termination: edge
+  labels:
+    app: keycloak
+  name: keycloak-ingress
+  namespace: keycloak
+spec:
+  host: sso.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com
+  port:
+    targetPort: http
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: keycloak-service
+    weight: 100
+  wildcardPolicy: None

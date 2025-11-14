@@ -1,0 +1,45 @@
+# Secret files - DO NOT COMMIT
+*-secrets.yaml
+*-secrets.yml
+*.secret.yaml
+*.secret.yml
+secrets/
+.secrets/
+
+# Local configuration with real values
+*-local.yaml
+*-local.yml
+*.local.yaml
+*.local.yml
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+
+# Keycloak exports with sensitive data
+*-realm-export-local.json
+realm-export-local.json
+
+# Backup files
+*.bak
+*.backup
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Generated token files
+token.txt
+*.token
+credentials.txt
+

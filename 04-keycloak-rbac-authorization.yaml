@@ -1,0 +1,89 @@
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy # this policy is additive on top of the sso-authpolicy applied earlier in 03-keycloak-authentication.yaml
+metadata:
+  name: toystore-admins
+  namespace: toystore
+spec:
+  rules:
+    authorization:
+      only-admins:
+        metrics: false
+        opa:
+          allValues: false
+          rego: |
+            roles := input.auth.identity.realm_access.roles
+            allow { roles[_] == "admin" }
+        priority: 0
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: toystore
+    sectionName: rule-2
+---
+## update the sso-authpolicy to created earlier to apply the response structure shown below
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: sso-authpolicy
+  namespace: toystore
+spec:
+  defaults:
+    rules:
+      authentication:
+        keycloak-jwt:
+          jwt:
+            issuerUrl: https://sso.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com/realms/kuadrant
+          metrics: false
+          priority: 0
+      response:
+        success:
+          filters:
+            identity:
+              json:
+                properties:
+                  roles:
+                    selector: auth.identity.realm_access.roles
+                  userid:
+                    selector: auth.identity.sub
+              metrics: false
+              priority: 0
+    strategy: atomic
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: toystore
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: toystore
+  namespace: toystore
+spec:
+  hostnames:
+  - api.apps.cluster-nnnnn.nnnnn.sandboxBBB.nnnnnn.com
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: external
+    namespace: api-gateway
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: toystore
+      port: 80
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /cars
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: toystore
+      port: 80
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /toy
